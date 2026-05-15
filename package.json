@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sim:headless": "tsx scripts/headless.ts",
-    "inspect": "tsx scripts/inspect.ts"
+    "inspect": "tsx scripts/inspect.ts",
+    "narrator": "tsx scripts/narrator-server.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

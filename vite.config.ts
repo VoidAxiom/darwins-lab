@@ -8,4 +8,11 @@ export default defineConfig({
   worker: {
     format: "es",
   },
+  server: {
+    // Optional AI narrator: proxy /api to the local narrator-server so the
+    // API key never enters the browser bundle. Harmless if not running.
+    proxy: {
+      "/api": "http://localhost:8787",
+    },
+  },
 });
