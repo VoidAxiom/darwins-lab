@@ -17,11 +17,14 @@ export class SpeciesManager {
   species = new Map<number, Species>();
   private nextId = 1;
   private readonly threshold: number;
+  /** Minimum members for a cluster to count as a real, named clan. */
+  private readonly minViable: number;
   private readonly palette: string[];
   private paletteCursor = 0;
 
-  constructor(threshold = 0.55) {
+  constructor(threshold = 0.55, minViable = 12) {
     this.threshold = threshold;
+    this.minViable = minViable;
     this.palette = buildPalette();
   }
 
@@ -92,11 +95,51 @@ export class SpeciesManager {
       }
     }
 
-    // Recompute centroids + populations from the new membership.
-    const members = new Map<number, Creature[]>();
-    for (const c of creatures) {
-      (members.get(c.speciesId) ?? members.set(c.speciesId, []).get(c.speciesId)!).push(c);
+    // Consolidation pass: a clan only "counts" if it reaches a minimum viable
+    // size. Members of sub-viable clusters are absorbed into the nearest
+    // genuinely viable clan, which keeps the species count meaningful (a
+    // handful of real lineages) instead of hundreds of one-off mutants.
+    const groupOf = () => {
+      const m = new Map<number, Creature[]>();
+      for (const c of creatures) {
+        let g = m.get(c.speciesId);
+        if (!g) m.set(c.speciesId, (g = []));
+        g.push(c);
+      }
+      return m;
+    };
+    let members = groupOf();
+    const viableIds: number[] = [];
+    for (const [id, group] of members) {
+      if (group.length >= this.minViable) viableIds.push(id);
     }
+    if (viableIds.length > 0) {
+      for (const [id, group] of members) {
+        if (group.length >= this.minViable) continue;
+        // Reassign every member to the nearest viable clan's centroid.
+        for (const c of group) {
+          let bestId = viableIds[0];
+          let bestDist = Infinity;
+          for (const vid of viableIds) {
+            const sp = this.species.get(vid)!;
+            const d = genomeDistance(c.genome, sp.centroid);
+            if (d < bestDist) {
+              bestDist = d;
+              bestId = vid;
+            }
+          }
+          c.speciesId = bestId;
+        }
+        // A provisional clan born this very pass that never took hold is
+        // noise — drop it entirely so the lineage tree stays readable.
+        const sp = this.species.get(id);
+        if (sp && sp.bornTick === tick && sp.peakPopulation < this.minViable) {
+          this.species.delete(id);
+        }
+      }
+      members = groupOf();
+    }
+
     const alive = new Set<number>();
     for (const [id, group] of members) {
       const sp = this.species.get(id);
@@ -108,10 +151,11 @@ export class SpeciesManager {
       alive.add(id);
     }
     this.markExtinctions(tick, alive);
-    // A freshly created species with a tiny membership and a near-identical
-    // centroid is just noise; absorb singletons back if reassigned away.
     void rng;
-    return created.filter((id) => (this.species.get(id)?.population ?? 0) > 0);
+    return created.filter((id) => {
+      const sp = this.species.get(id);
+      return sp !== undefined && sp.population >= this.minViable;
+    });
   }
 
   private markExtinctions(tick: number, alive: Set<number>) {

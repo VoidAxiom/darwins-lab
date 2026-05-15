@@ -55,7 +55,7 @@ export class Simulation {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.rng = new RNG(this.config.seed);
     this.world = generateWorld(this.rng, this.config.cols, this.config.rows, this.config.cellSize);
-    this.species = new SpeciesManager(this.config.speciationThreshold);
+    this.species = new SpeciesManager(this.config.speciationThreshold, 9);
     this.history = new HistoryBuffer();
     this.grid = new SpatialGrid(this.world.width, this.world.height, 56);
     this.spawnFounders();
@@ -171,10 +171,12 @@ export class Simulation {
       this.creatures.push(c);
     }
 
-    this.enforceCapacity();
+    // Capacity culling involves an O(n log n) sort; only the rare overshoot
+    // matters, so amortise it over a few ticks instead of every tick.
+    if (this.tick % 3 === 0) this.enforceCapacity();
 
     if (this.tick % this.config.regrowEvery === 0) {
-      regrowFood(w, 0.5 * this.config.regrowEvery);
+      regrowFood(w, 0.078 * this.config.regrowEvery);
     }
     if (this.tick % this.config.reclusterEvery === 0) {
       const created = this.species.recluster(this.creatures, this.tick, this.rng);
@@ -203,6 +205,7 @@ export class Simulation {
     let mate: Creature | null = null;
     let preyRef: Creature | null = null;
 
+    let crowding = 0;
     this.grid.forNeighbors(c.x, c.y, visionR, (o) => {
       if (o === c) return;
       const dx = o.x - c.x;
@@ -210,6 +213,7 @@ export class Simulation {
       const d2 = dx * dx + dy * dy;
       if (d2 > visionR * visionR) return;
       const d = Math.sqrt(d2) || 1;
+      if (d < 18) crowding++;
       const oCarn = o.genome.diet > 0.55;
 
       if (oCarn && o.genome.size >= g.size * 0.85 && d < threatDist) {
@@ -227,8 +231,8 @@ export class Simulation {
       if (
         !mate &&
         o.speciesId === c.speciesId &&
-        o.energy > o.genome.reproduction * 60 &&
-        c.energy > g.reproduction * 60
+        o.energy > o.genome.reproduction * 85 &&
+        c.energy > g.reproduction * 85
       ) {
         mate = o;
       }
@@ -242,11 +246,22 @@ export class Simulation {
       targetX = c.memX;
       targetY = c.memY;
     } else if (threatDist === Infinity && !isCarn) {
-      // Climb the local food gradient toward the richest nearby cell.
+      // Climb the local food gradient toward the richest nearby cell. If the
+      // neighbourhood is uniformly grazed/lush there is no gradient, so pick
+      // a medium-range wander goal and commit to it (cheap + disperses the
+      // population instead of pinning it against the map edges).
       const best = this.bestFoodDir(c, visionR);
       if (best) {
         targetX = best.x;
         targetY = best.y;
+      } else {
+        const a = this.rng.range(0, Math.PI * 2);
+        const r = this.rng.range(40, 120);
+        c.memX = Math.min(w.width - 1, Math.max(0, c.x + Math.cos(a) * r));
+        c.memY = Math.min(w.height - 1, Math.max(0, c.y + Math.sin(a) * r));
+        c.memStrength = 60;
+        targetX = c.memX;
+        targetY = c.memY;
       }
     }
 
@@ -258,13 +273,16 @@ export class Simulation {
     c.heading += dh * 0.35 + this.rng.gaussian(0, 0.08);
     let nx = c.x + Math.cos(c.heading) * speed;
     let ny = c.y + Math.sin(c.heading) * speed;
-    // Reflect off the world edges and off open water.
+    // Turn away from world edges and open water with a randomized heading so
+    // creatures don't get trapped sliding along a coastline forever.
     if (nx < 0 || nx >= w.width || w.terrainAt(nx, c.y) === "water") {
-      c.heading = Math.PI - c.heading;
+      c.heading = Math.PI - c.heading + this.rng.gaussian(0, 0.6);
+      c.memStrength = 0; // abandon any goal that led into the wall
       nx = c.x;
     }
     if (ny < 0 || ny >= w.height || w.terrainAt(nx, ny) === "water") {
-      c.heading = -c.heading;
+      c.heading = -c.heading + this.rng.gaussian(0, 0.6);
+      c.memStrength = 0;
       ny = c.y;
     }
     c.x = Math.min(w.width - 0.01, Math.max(0, nx));
@@ -288,7 +306,7 @@ export class Simulation {
       if (avail > 0.05) {
         const bite = Math.min(avail, 0.6 + g.size * 0.5);
         w.food[fi] -= bite;
-        c.energy += bite * (1 - g.diet) * 2.4;
+        c.energy += bite * (1 - g.diet) * 1.75;
         c.memX = c.x;
         c.memY = c.y;
         c.memStrength = 40 + g.memory * 220;
@@ -308,23 +326,37 @@ export class Simulation {
     }
 
     // --- disease ---
+    // sick > 0 : infected (counts down).  sick < 0 : recovered & immune
+    // (counts back up toward 0, i.e. immunity wanes). Immunity is what lets a
+    // plague burn through, cull the weak, then actually subside.
     if (c.sick > 0) {
       c.sick--;
-      if (this.rng.chance(0.02)) c.sick = 0; // recovery
-      if (c.sick > 0 && this.rng.chance(0.03)) {
-        this.grid.forNeighbors(c.x, c.y, 14, (o) => {
-          if (o.sick === 0 && this.rng.chance(0.08 * (1 - o.genome.metabolism * 0.5))) {
-            o.sick = this.rng.int(180, 380);
+      if (c.sick === 0) c.sick = -this.rng.int(700, 1400); // recover → immune
+      else if (this.rng.chance(0.012)) c.sick = -900; // early recovery
+      else if (this.rng.chance(0.0016)) return false; // died of the disease
+      if (c.sick > 0 && this.rng.chance(0.025)) {
+        this.grid.forNeighbors(c.x, c.y, 13, (o) => {
+          if (o.sick === 0 && this.rng.chance(0.05 * (1 - o.genome.metabolism * 0.55))) {
+            o.sick = this.rng.int(120, 240);
           }
         });
       }
+    } else if (c.sick < 0) {
+      c.sick++; // immunity slowly wanes back to susceptible
     }
 
     // --- reproduction ---
     const reproCost = 22 + g.offspringInvestment * 34;
+    // Density-dependent breeding: crowding suppresses reproduction, which
+    // gives the world a real ecological carrying capacity well below the hard
+    // cap, so population breathes (booms, busts, recoveries) instead of
+    // flat-lining at the ceiling.
+    const reproChance = 0.05 * (1 - Math.min(1, crowding / 12)) ** 1.5;
     if (
-      c.energy > g.reproduction * 60 + reproCost &&
-      c.age > 30 &&
+      c.energy > g.reproduction * 80 + reproCost &&
+      c.age > 40 &&
+      c.sick <= 0 &&
+      this.rng.chance(reproChance) &&
       this.creatures.length + newborns.length < this.config.capacity
     ) {
       c.energy -= reproCost;
@@ -354,10 +386,12 @@ export class Simulation {
     }
 
     // --- mortality ---
-    const maxAge = 900 + (1 - g.metabolism) * 1600;
+    // Shorter lifespans → faster generational turnover → more visible
+    // evolution per tick (thousands of generations in a sitting).
+    const maxAge = 480 + (1 - g.metabolism) * 950;
     if (c.energy <= 0) return false;
     if (c.age > maxAge) return false;
-    if (c.age > maxAge * 0.6 && this.rng.chance(0.0012)) return false;
+    if (c.age > maxAge * 0.55 && this.rng.chance(0.0022)) return false;
     return true;
   }
 
@@ -368,8 +402,8 @@ export class Simulation {
     let bestVal = w.food[w.idxAt(c.x, c.y)];
     let bx = 0;
     let by = 0;
-    for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
-      for (let r = step; r <= visionR; r += step * 1.5) {
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
+      for (let r = step; r <= visionR; r += step * 2.5) {
         const sx = c.x + Math.cos(a) * r;
         const sy = c.y + Math.sin(a) * r;
         if (sx < 0 || sy < 0 || sx >= w.width || sy >= w.height) continue;
@@ -532,6 +566,14 @@ export class Simulation {
       events: this.events.slice(-120),
       history: this.history.all(),
       speciesById: this.species.asRecord(),
+      worldMeta: {
+        cols: this.world.cols,
+        rows: this.world.rows,
+        cellSize: this.world.cellSize,
+        terrain: this.world.terrain,
+        foodCap: this.world.foodCap,
+        food: this.world.food,
+      },
       running,
       speed,
     };

@@ -69,7 +69,7 @@ export function triggerShock(
     case "plague": {
       // Infect a wide swath; mortality then plays out via the disease system.
       for (const c of creatures) {
-        if (rng.chance(0.6)) c.sick = Math.max(c.sick, rng.int(220, 480));
+        if (c.sick === 0 && rng.chance(0.45)) c.sick = rng.int(140, 300);
       }
       return null;
     }
