@@ -11,6 +11,7 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { renderDashboard } from "./lib/dashboard";
 import { encodePNG } from "./lib/png";
 import { renderFrame } from "./lib/render";
 import { SHOCK_LABELS } from "../src/sim/events";
@@ -73,10 +74,16 @@ for (let i = 0; i < TICKS; i++) {
   }
 
   if (frameAt.has(i)) {
-    const { buf, width, height } = renderFrame(sim, { scale: 1, legendH: 46 });
-    const png = encodePNG(buf, width, height);
-    const name = `frame-${String(frameIdx).padStart(2, "0")}-t${i}.png`;
-    writeFileSync(join(OUT, name), png);
+    const f = renderFrame(sim, { scale: 1, legendH: 46 });
+    writeFileSync(
+      join(OUT, `frame-${String(frameIdx).padStart(2, "0")}-t${i}.png`),
+      encodePNG(f.buf, f.width, f.height),
+    );
+    const d = renderDashboard(sim);
+    writeFileSync(
+      join(OUT, `dash-${String(frameIdx).padStart(2, "0")}-t${i}.png`),
+      encodePNG(d.buf, d.width, d.height),
+    );
     frameIdx++;
   }
 
