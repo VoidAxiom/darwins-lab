@@ -107,6 +107,16 @@ export interface SimStats {
   activeShock: ShockKind | null;
 }
 
+/** Static + dynamic world grid data needed to paint the living map. */
+export interface WorldMeta {
+  cols: number;
+  rows: number;
+  cellSize: number;
+  terrain: Uint8Array;
+  foodCap: Float32Array;
+  food: Float32Array;
+}
+
 /** Full per-frame payload from worker → UI. */
 export interface SimSnapshot {
   stats: SimStats;
@@ -114,6 +124,7 @@ export interface SimSnapshot {
   events: EventRecord[];
   history: HistoryFrame[];
   speciesById: Record<number, Species>;
+  worldMeta: WorldMeta;
   running: boolean;
   speed: number;
 }
