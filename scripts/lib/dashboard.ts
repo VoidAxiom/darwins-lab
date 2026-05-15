@@ -7,7 +7,6 @@ import { cellColor, hslStringToRgb, type RGB } from "../../src/render/palette";
 import { narrateHeuristic } from "../../src/narrator/heuristic";
 import { GENE_INFO, type GeneKey } from "../../src/sim/genome";
 import type { Simulation } from "../../src/sim/simulation";
-import type { World } from "../../src/sim/world";
 import { drawText } from "./font";
 
 const SIDEBAR = 330;
