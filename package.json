@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sim:headless": "tsx scripts/headless.ts"
+    "sim:headless": "tsx scripts/headless.ts",
+    "inspect": "tsx scripts/inspect.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
