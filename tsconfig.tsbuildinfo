@@ -1,0 +1,1 @@
+{"root":["./src/sim/config.ts","./src/sim/events.ts","./src/sim/genome.ts","./src/sim/history.ts","./src/sim/rng.ts","./src/sim/sim.test.ts","./src/sim/simulation.ts","./src/sim/spatial.ts","./src/sim/speciation.ts","./src/sim/stats.ts","./src/sim/types.ts","./src/sim/world.ts","./scripts/headless.ts","./vite.config.ts"],"version":"5.9.3"}
