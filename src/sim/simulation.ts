@@ -47,6 +47,8 @@ export class Simulation {
   private births = 0;
   private deaths = 0;
   private grid: SpatialGrid;
+  /** Reused neighbour-query buffer to keep the per-tick loop allocation-free. */
+  private scratch: Creature[] = [];
   private activeShock: ActiveShock | null = null;
   private ancestry = new Map<number, AncestryRecord>();
   private lastPopForBottleneck = 0;
@@ -206,12 +208,16 @@ export class Simulation {
     let preyRef: Creature | null = null;
 
     let crowding = 0;
-    this.grid.forNeighbors(c.x, c.y, visionR, (o) => {
-      if (o === c) return;
+    // Allocation-free neighbour scan (hot path: once per creature per tick).
+    const m = this.grid.query(c.x, c.y, visionR, this.scratch);
+    const visR2 = visionR * visionR;
+    for (let qi = 0; qi < m; qi++) {
+      const o = this.scratch[qi];
+      if (o === c) continue;
       const dx = o.x - c.x;
       const dy = o.y - c.y;
       const d2 = dx * dx + dy * dy;
-      if (d2 > visionR * visionR) return;
+      if (d2 > visR2) continue;
       const d = Math.sqrt(d2) || 1;
       if (d < 18) crowding++;
       const oCarn = o.genome.diet > 0.55;
@@ -240,7 +246,7 @@ export class Simulation {
       ) {
         mate = o;
       }
-    });
+    }
 
     if (isCarn && preyRef && threatDist === Infinity) {
       targetX = (preyRef as Creature).x;

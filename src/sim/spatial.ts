@@ -47,4 +47,27 @@ export class SpatialGrid {
       }
     }
   }
+
+  /**
+   * Allocation-free neighbour query: fills the caller-owned `out` array with
+   * candidate creatures from the surrounding buckets and returns the count.
+   * This is the hot path (called once per creature per tick), so it avoids
+   * the per-call closure that `forNeighbors` allocates.
+   */
+  query(x: number, y: number, radius: number, out: Creature[]): number {
+    const r = Math.ceil(radius / this.cellSize);
+    const cx = (x / this.cellSize) | 0;
+    const cy = (y / this.cellSize) | 0;
+    const rows = this.buckets.length / this.cols;
+    let n = 0;
+    for (let gy = cy - r; gy <= cy + r; gy++) {
+      if (gy < 0 || gy >= rows) continue;
+      for (let gx = cx - r; gx <= cx + r; gx++) {
+        if (gx < 0 || gx >= this.cols) continue;
+        const bucket = this.buckets[gy * this.cols + gx];
+        for (let i = 0; i < bucket.length; i++) out[n++] = bucket[i];
+      }
+    }
+    return n;
+  }
 }

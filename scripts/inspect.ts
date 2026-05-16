@@ -12,6 +12,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderDashboard } from "./lib/dashboard";
+import { renderPhylogeny } from "./lib/phylo";
 import { encodePNG } from "./lib/png";
 import { renderFrame } from "./lib/render";
 import { SHOCK_LABELS } from "../src/sim/events";
@@ -83,6 +84,11 @@ for (let i = 0; i < TICKS; i++) {
     writeFileSync(
       join(OUT, `dash-${String(frameIdx).padStart(2, "0")}-t${i}.png`),
       encodePNG(d.buf, d.width, d.height),
+    );
+    const p = renderPhylogeny(sim);
+    writeFileSync(
+      join(OUT, `phylo-${String(frameIdx).padStart(2, "0")}-t${i}.png`),
+      encodePNG(p.buf, p.width, p.height),
     );
     frameIdx++;
   }
