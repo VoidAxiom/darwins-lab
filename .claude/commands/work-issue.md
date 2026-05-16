@@ -10,6 +10,11 @@ destructive/irreversible actions need a go-ahead).
 Issue: **$1** — if empty, use the Linear MCP to pick the next unblocked,
 unassigned issue in the active project, lowest priority number first.
 
+0. Linear MCP: ensure the project exists. List teams; if no project named
+   **"Darwin's Lab"** exists, create it under the primary team (description:
+   "Genetic-algorithm evolution sim — see repo CLAUDE.md"). If `$1` is empty
+   and the project has no open issues, create a small backlog from the repo's
+   obvious next steps before proceeding.
 1. Linear MCP: read the issue (title, description, acceptance criteria,
    sub-tasks). Move it to **In Progress** and assign it to the current user.
 2. `git switch main && git pull --ff-only` (bootstrap: if `origin/main`
