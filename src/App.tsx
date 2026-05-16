@@ -5,6 +5,7 @@ import { Controls } from "./ui/Controls";
 import { CreatureInspector } from "./ui/CreatureInspector";
 import { EventsLog } from "./ui/EventsLog";
 import { NarratorPanel } from "./ui/NarratorPanel";
+import { Phylogeny } from "./ui/Phylogeny";
 import { ShockPanel } from "./ui/ShockPanel";
 import { StatsPanel } from "./ui/StatsPanel";
 import { Timeline } from "./ui/Timeline";
@@ -43,6 +44,7 @@ export function App() {
         <NarratorPanel />
         <StatsPanel />
         <ShockPanel />
+        <Phylogeny />
         <CreatureInspector />
         <EventsLog />
       </aside>

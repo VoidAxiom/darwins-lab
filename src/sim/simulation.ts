@@ -217,9 +217,13 @@ export class Simulation {
       const oCarn = o.genome.diet > 0.55;
 
       if (oCarn && o.genome.size >= g.size * 0.85 && d < threatDist) {
-        // A predator big enough to matter — flee from it.
+        // A predator big enough to matter. Most prey flee — but a big,
+        // aggressive creature may instead stand its ground and fight back,
+        // which is what makes aggression a real (costly) strategy under
+        // predation rather than neutral drift.
         threatDist = d;
-        if (g.aggression < 0.7 || isCarn === false) {
+        const stand = g.aggression * g.size;
+        if (stand < 0.32 || this.rng.next() > stand) {
           targetX = c.x - dx;
           targetY = c.y - dy;
         }
@@ -295,6 +299,7 @@ export class Simulation {
       g.metabolism * 0.16 +
       g.speed * 0.05 +
       g.size * 0.06 +
+      g.aggression * 0.035 + // aggression is metabolically expensive to keep
       climateMiss * 0.14 +
       (c.sick > 0 ? 0.12 : 0);
     c.energy -= burn;
@@ -304,7 +309,10 @@ export class Simulation {
       const fi = w.idxAt(c.x, c.y);
       const avail = w.food[fi];
       if (avail > 0.05) {
-        const bite = Math.min(avail, 0.6 + g.size * 0.5);
+        // In a crowded patch the more aggressive creature wins the scrum and
+        // takes a bigger bite — aggression's payoff when food is contested.
+        const contest = crowding > 2 ? 0.55 + g.aggression * 0.6 : 1;
+        const bite = Math.min(avail, (0.6 + g.size * 0.5) * contest);
         w.food[fi] -= bite;
         c.energy += bite * (1 - g.diet) * 1.75;
         c.memX = c.x;
@@ -318,10 +326,17 @@ export class Simulation {
     if (isCarn && preyRef && preyDist < 6) {
       const prey = preyRef as Creature;
       const atk = g.aggression * 0.6 + g.size * 0.4 + g.speed * 0.2;
-      const def = prey.genome.camouflage * 0.7 + prey.genome.speed * 0.3 + prey.genome.size * 0.2;
+      const def =
+        prey.genome.camouflage * 0.7 +
+        prey.genome.speed * 0.3 +
+        prey.genome.size * 0.2 +
+        prey.genome.aggression * prey.genome.size * 0.5; // fights back
       if (this.rng.next() < atk / (atk + def + 0.15)) {
         c.energy += 22 + prey.genome.size * 26 + prey.energy * 0.3;
         prey.energy = -1; // marked dead; removed when its turn comes
+      } else {
+        // A failed strike on a big, aggressive defender wounds the predator.
+        c.energy -= 6 + prey.genome.aggression * prey.genome.size * 22;
       }
     }
 
