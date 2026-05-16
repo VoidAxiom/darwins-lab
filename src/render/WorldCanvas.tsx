@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLab } from "../store";
-import { cellColor } from "./palette";
+import { cellColor, SICK_CSS } from "./palette";
 import type { World } from "../sim/world";
 
 /**
@@ -66,7 +66,7 @@ export function WorldCanvas() {
     for (const d of snapshot.dots) {
       ctx.beginPath();
       const r = 1.4 + d.size * 2.6;
-      ctx.fillStyle = d.sick ? "#e84fcf" : colorOf(d.speciesId);
+      ctx.fillStyle = d.sick ? SICK_CSS : colorOf(d.speciesId);
       ctx.globalAlpha = d.energy < 12 ? 0.5 : 1;
       ctx.arc(d.x, d.y, r, 0, Math.PI * 2);
       ctx.fill();
@@ -108,6 +108,25 @@ export function WorldCanvas() {
   return (
     <div className="stage">
       <canvas ref={canvasRef} onClick={onClick} />
+      <div
+        className="legend"
+        style={{
+          position: "absolute",
+          left: 10,
+          bottom: 10,
+          background: "rgba(8,10,14,0.7)",
+          padding: "5px 9px",
+          borderRadius: 6,
+        }}
+      >
+        <span>dots = creatures, coloured by clan</span>
+        <span>
+          <span className="swatch" style={{ background: SICK_CSS }} />
+          diseased
+        </span>
+        <span>greener terrain = more food · tan = grazed bare</span>
+        <span className="muted">click a creature to inspect</span>
+      </div>
     </div>
   );
 }

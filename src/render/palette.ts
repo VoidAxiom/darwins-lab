@@ -65,3 +65,10 @@ export function cellColor(world: World, cellIndex: number): RGB {
 }
 
 export const TERRAIN_COUNT = TERRAIN_ORDER.length;
+
+/**
+ * Diseased creatures render in a fixed sickly grey-violet — deliberately
+ * outside the vivid golden-angle clan palette so "ill" never reads as a clan.
+ */
+export const SICK_RGB: RGB = [150, 120, 165];
+export const SICK_CSS = "rgb(150 120 165)";

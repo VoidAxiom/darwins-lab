@@ -3,7 +3,7 @@
  * PNG, mirroring the React dashboard. Lets the agent visually review the whole
  * UX — information density, colour, narration — not just the raw world.
  */
-import { cellColor, hslStringToRgb, type RGB } from "../../src/render/palette";
+import { cellColor, hslStringToRgb, type RGB, SICK_RGB } from "../../src/render/palette";
 import { narrateHeuristic } from "../../src/narrator/heuristic";
 import { GENE_INFO, type GeneKey } from "../../src/sim/genome";
 import type { Simulation } from "../../src/sim/simulation";
@@ -54,7 +54,7 @@ export function renderDashboard(sim: Simulation) {
   const colorOf = (id: number) =>
     hslStringToRgb(sim.species.asRecord()[id]?.color ?? "hsl(0 0% 80%)");
   for (const d of snap.dots) {
-    const col: RGB = d.sick ? [232, 79, 207] : colorOf(d.speciesId);
+    const col: RGB = d.sick ? SICK_RGB : colorOf(d.speciesId);
     const r = Math.max(1, Math.round(1.4 + d.size * 2.4));
     for (let yy = -r; yy <= r; yy++)
       for (let xx = -r; xx <= r; xx++)
@@ -90,7 +90,7 @@ export function renderDashboard(sim: Simulation) {
   y += 14;
   for (const k of Object.keys(st.meanGenes) as GeneKey[]) {
     const v = st.meanGenes[k];
-    drawText(put, GENE_INFO[k].label.slice(0, 9), sx + PAD, y, MUTED, 1);
+    drawText(put, GENE_INFO[k].label, sx + PAD, y, MUTED, 1);
     rect(sx + PAD + 96, y, 130, 7, [14, 18, 24]);
     rect(sx + PAD + 96, y, Math.round(130 * v), 7, [60, 150, 230]);
     drawText(put, v.toFixed(2), sx + PAD + 234, y, TEXT, 1);
@@ -144,6 +144,7 @@ export function renderDashboard(sim: Simulation) {
     }
   }
   drawText(put, "EVOLUTIONARY TIMELINE  POP-BLUE  CLANS-GREEN", 6, ty + 5, MUTED, 1);
+  drawText(put, "DOTS-COLOURED BY CLAN  GREY-VIOLET-DISEASED", 6, ty + 16, MUTED, 1);
 
   return { buf, width: W, height: H };
 }

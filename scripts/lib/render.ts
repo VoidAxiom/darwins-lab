@@ -3,7 +3,7 @@
  * buffer, mirroring what the browser canvas will show. Used by the inspection
  * harness so the agent can literally look at the simulation and iterate.
  */
-import { cellColor, hslStringToRgb, type RGB } from "../../src/render/palette";
+import { cellColor, hslStringToRgb, type RGB, SICK_RGB } from "../../src/render/palette";
 import type { Simulation } from "../../src/sim/simulation";
 
 export interface RenderOpts {
@@ -55,7 +55,7 @@ export function renderFrame(sim: Simulation, opts: RenderOpts = {}) {
     const r = Math.max(1, Math.round((1 + d.size * 2.4) * scale));
     const dim = d.energy < 12 ? 0.55 : 1;
     const body: RGB = d.sick
-      ? [220, 80, 200]
+      ? SICK_RGB
       : [Math.round(col[0] * dim), Math.round(col[1] * dim), Math.round(col[2] * dim)];
     for (let yy = -r; yy <= r; yy++) {
       for (let xx = -r; xx <= r; xx++) {
