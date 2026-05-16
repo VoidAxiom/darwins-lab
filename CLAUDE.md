@@ -24,9 +24,11 @@ in-context go-ahead are money-spend and destructive/irreversible actions.
 
 **Never without an explicit go-ahead:**
 
-- **Money spend**: running the LLM narrator server or any paid app API.
-  (Triggering `@codex review` is part of the normal delivery flow and is
-  allowed; standing up the narrator's paid model is not.)
+- **Metered API spend**: running the LLM narrator server or any pay-per-call
+  API. This means the **app's `.env` Anthropic/OpenAI keys** specifically —
+  those are metered. Subscription-covered tools are **not** gated: Codex
+  (`codex-exec`, `@codex review`) is included in the user's plan, not a
+  metered key, so spawning/triggering it is allowed and unattended.
 - **Destructive / irreversible**: `git push --force`, history rewrite,
   deleting or overwriting files this agent did not create, deleting the
   repo or branches other than the just-merged PR branch, removing/leaking
