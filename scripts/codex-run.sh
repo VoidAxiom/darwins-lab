@@ -24,7 +24,12 @@ RUN=".codex-runs/$RUN_ID"
 mkdir -p "$RUN/artifacts"
 
 # Task packet: use provided file, else expect $RUN/task.md to already exist.
-if [ -n "$TASK_SRC" ]; then cp "$TASK_SRC" "$RUN/task.md"; fi
+# A failed copy must abort — otherwise a stale task.md from a previous run
+# with the same run-id would be executed silently (Codex review P2).
+if [ -n "$TASK_SRC" ]; then
+  [ -r "$TASK_SRC" ] || { echo "task-file not readable: $TASK_SRC" >&2; exit 2; }
+  cp -f "$TASK_SRC" "$RUN/task.md" || { echo "failed to copy task-file: $TASK_SRC" >&2; exit 2; }
+fi
 [ -s "$RUN/task.md" ] || { echo "missing task: $RUN/task.md (see .codex/task-template.md)" >&2; exit 2; }
 
 BASE_SHA="$(git rev-parse HEAD 2>/dev/null || echo '?')"
