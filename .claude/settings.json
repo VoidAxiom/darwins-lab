@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/session-context.sh",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/session-context.sh\"",
             "timeout": 15,
             "statusMessage": "Loading Darwin's Lab continuation digest"
           }
