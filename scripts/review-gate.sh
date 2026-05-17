@@ -106,12 +106,21 @@ for t in th:
     [ -n "$arg" ] || { echo "usage: review-gate.sh wait <pr> [maxSec]" >&2; exit 2; }
     MAX="${3:-360}"
     INT=15
-    WQ='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){mergeStateStatus comments(last:30){nodes{author{login}}} reviewThreads(first:100){nodes{isResolved}}}}}'
+    WQ='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){mergeStateStatus comments(last:50){nodes{author{login}}} reviewThreads(first:100){nodes{isResolved}}}}}'
+    # Baseline the Codex-comment count at invocation. REVIEWED-CLEAN requires
+    # a NEW chatgpt-codex-connector comment since now — not any historical
+    # one — so a prior clean comment can't short-circuit the re-review (P1).
+    base_resp="$(gh api graphql -F o="$OWNER" -F r="$REPO" -F n="$arg" -f query="$WQ" 2>/dev/null)"
+    BASE_CODEX="$(printf '%s' "$base_resp" | python3 -c 'import json,sys
+try: d=json.load(sys.stdin)["data"]["repository"]["pullRequest"]
+except Exception: print(0); sys.exit()
+print(sum(1 for c in d["comments"]["nodes"] if (c.get("author") or {}).get("login")=="chatgpt-codex-connector"))')"
+    echo "baseline: ${BASE_CODEX:-0} prior Codex comment(s) — waiting for a fresh one"
     elapsed=0
     while :; do
       ci="$(gh pr checks "$arg" --json bucket -q '.[0].bucket' 2>/dev/null || echo '?')"
       resp="$(gh api graphql -F o="$OWNER" -F r="$REPO" -F n="$arg" -f query="$WQ" 2>/dev/null)"
-      verdict="$(printf '%s' "$resp" | CI="$ci" python3 -c '
+      verdict="$(printf '%s' "$resp" | CI="$ci" BASE="${BASE_CODEX:-0}" python3 -c '
 import json,os,sys
 try:
     d=json.load(sys.stdin)["data"]["repository"]["pullRequest"]
@@ -120,13 +129,14 @@ except Exception:
 th=d["reviewThreads"]["nodes"]
 openn=sum(1 for t in th if not t["isResolved"])
 codex=sum(1 for c in d["comments"]["nodes"] if (c.get("author") or {}).get("login")=="chatgpt-codex-connector")
+base=int(os.environ.get("BASE","0")); fresh=codex-base
 mss=d["mergeStateStatus"]; ci=os.environ.get("CI","?")
 if openn>0:
     print("FINDINGS open=%d mss=%s ci=%s" % (openn,mss,ci))
-elif codex>0 and ci!="pending":
-    print("REVIEWED-CLEAN codex_comments=%d open=0 mss=%s ci=%s" % (codex,mss,ci))
+elif fresh>0 and ci!="pending":
+    print("REVIEWED-CLEAN fresh_codex=%d open=0 mss=%s ci=%s" % (fresh,mss,ci))
 else:
-    print("WAITING codex_comments=%d open=%d ci=%s" % (codex,openn,ci))
+    print("WAITING codex=%d fresh=%d open=%d ci=%s" % (codex,fresh,openn,ci))
 ')"
       echo "t=${elapsed}s ${verdict}"
       case "$verdict" in
