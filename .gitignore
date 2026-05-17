@@ -8,3 +8,6 @@ dist-ssr
 coverage
 *.log
 inspect/
+
+# Codex exec run packets (external-subagent transcripts)
+.codex-runs/

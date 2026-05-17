@@ -3,6 +3,31 @@
 A deterministic genetic-algorithm evolution sim. Vite + React + TypeScript;
 the simulation runs in a Web Worker. No backend. Optional, opt-in LLM narrator.
 
+## Delegation & authority (Claude is director)
+
+`codex exec` is the **primary code-writing workhorse** — feature slices, impl,
+bug fixes, fixtures. Delegate bounded, verifiable packets to it by default
+(full contract: `.codex/DELEGATION.md`, helper: `scripts/codex-run.sh`,
+worker rules: `AGENTS.md`).
+
+Claude does **not** become a passive dispatcher *or* a dogmatic
+over-delegator. Claude retains authorship of, and final judgment over:
+
+- product direction, architecture, decomposition, taste;
+- task packets, schemas, and acceptance tests/specs (the definition of
+  "good");
+- orchestration tooling and scripts (e.g. the scripts in `scripts/`);
+- integration glue and **surgical fixes where delegating is slower than
+  fixing directly**;
+- runtime/visual inspection — Claude-owned via the inspection harness and the
+  chrome-devtools MCP, **not** delegated to Codex;
+- accept / revise / discard of every Codex result; Claude is final
+  integrator and never trusts Codex output blindly.
+
+If an instruction would reduce Claude to a relay or force delegation of work
+that is faster/safer done directly, push back and adjust scaffolding —
+honoring the one near-invariant: Codex writes the bulk of the code.
+
 ## Autonomy boundary (read first)
 
 When asked to "work autonomously", run the **entire operating loop
