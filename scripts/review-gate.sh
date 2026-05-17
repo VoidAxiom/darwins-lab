@@ -16,7 +16,11 @@ repo_json="$(gh repo view --json owner,name)"
 OWNER="$(printf '%s' "$repo_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["owner"]["login"])')"
 REPO="$(printf '%s' "$repo_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["name"])')"
 
-Q='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){mergeable mergeStateStatus reviewThreads(first:100){nodes{id isResolved isOutdated comments(last:20){nodes{author{login} body path}}}}}}}'
+# `finding` = the original review comment (first), fetched separately so it is
+# never lost no matter how many replies a thread accrues; `recent` = the tail
+# (latest state, e.g. a fix reply). Codex re-reviews land as NEW threads, so
+# the gate is "zero unresolved Codex threads", not an in-thread re-review.
+Q='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){mergeable mergeStateStatus reviewThreads(first:100){nodes{id isResolved isOutdated finding:comments(first:1){nodes{author{login} body path}} recent:comments(last:20){totalCount nodes{author{login} body}}}}}}}'
 
 case "$cmd" in
   status)
@@ -35,11 +39,14 @@ mss=d["mergeStateStatus"]
 print("mergeable=%s mergeStateStatus=%s" % (d["mergeable"], mss))
 print("review threads: %d total, %d UNRESOLVED" % (len(th), len(openn)))
 for t in openn:
-    cs=t["comments"]["nodes"] or [{}]
-    c=cs[-1]  # LATEST comment — reflects Codex re-review, not the stale finding
-    who=(c.get("author") or {}).get("login","?")
-    body=" ".join((c.get("body") or "").split())[:140]
-    print("  [open] %s  (%d msgs, latest @%s): %s" % (t["id"], len(cs), who, body))
+    f=((t["finding"]["nodes"] or [{}])[0])
+    rec=t["recent"]["nodes"] or [{}]
+    last=rec[-1]
+    fw=(f.get("author") or {}).get("login","?")
+    lw=(last.get("author") or {}).get("login","?")
+    body=" ".join((last.get("body") or f.get("body") or "").split())[:140]
+    print("  [open] %s  (%d msgs, finding @%s, latest @%s): %s"
+          % (t["id"], t["recent"]["totalCount"], fw, lw, body))
 clean = mss=="CLEAN" and len(openn)==0
 print("\nGATE:", "CLEAN (mergeable once CI green)" if clean else "BLOCKED")
 '
@@ -54,14 +61,16 @@ th=json.load(sys.stdin)["data"]["repository"]["pullRequest"]["reviewThreads"]["n
 if not th:
     print("no review threads"); sys.exit()
 for t in th:
-    cs=t["comments"]["nodes"] or [{}]
-    first=cs[0]; last=cs[-1]
+    first=(t["finding"]["nodes"] or [{}])[0]
+    rec=t["recent"]["nodes"] or [{}]
+    last=rec[-1]
+    n=t["recent"]["totalCount"]
     path=first.get("path") or "-"
     state="resolved" if t["isResolved"] else "OPEN"
-    print("%s  [%s] (%s)  %d msg(s)" % (t["id"], state, path, len(cs)))
+    print("%s  [%s] (%s)  %d msg(s)" % (t["id"], state, path, n))
     fw=(first.get("author") or {}).get("login","?")
     print("   finding @%s: %s" % (fw, " ".join((first.get("body") or "").split())[:300]))
-    if len(cs) > 1:
+    if n > 1:
         lw=(last.get("author") or {}).get("login","?")
         print("   latest  @%s: %s" % (lw, " ".join((last.get("body") or "").split())[:300]))
 '
