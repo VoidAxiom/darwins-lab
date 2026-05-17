@@ -24,11 +24,13 @@ Loop until the gate is CLEAN:
      highlights the change**, then **resolve the old thread**:
      `gh pr comment $1 --body "@codex addressed <finding> in <sha>: <what>. Please re-review."`
      then `scripts/review-gate.sh resolve <id>`.
-4. **Wait for Codex's re-review** — it arrives as **NEW threads** (never a
-   reply in the resolved one). Loop back to step 1 and handle those the same
-   way until **zero unresolved Codex threads**. As final judge, a
-   non-actionable nitpick may be resolved with a reasoned top-level `@codex`
-   note rather than looped forever.
+4. **Wait for Codex's re-review with `scripts/review-gate.sh wait $1`** — it
+   polls every ~15s and returns the instant Codex acts: `FINDINGS` (new
+   threads — Codex re-reviews via NEW threads, never the resolved one) or
+   `REVIEWED-CLEAN` (a `chatgpt-codex-connector` comment with CI settled),
+   instead of grinding a long fixed deadline. On `FINDINGS`, loop back to
+   step 1. As final judge, a non-actionable nitpick may be resolved with a
+   reasoned top-level `@codex` note rather than looped forever.
 5. When **zero Codex threads are unresolved**, `gh pr checks $1` is green,
    and `mergeStateStatus` is `CLEAN`:
    - `gh pr merge $1 --squash --delete-branch`.
