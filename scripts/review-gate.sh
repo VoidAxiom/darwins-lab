@@ -77,11 +77,10 @@ for t in th:
     ;;
 
   reply)
-    # reply <threadId> <body...> — posts IN the review thread Codex spawned
-    # (not a top-level PR comment) so the conversation is correctly answered.
-    # Include "@codex" in the body when a re-review is wanted; resolve only
-    # AFTER Codex has re-evaluated (or for a trivial fix, with the in-thread
-    # reply as the record).
+    # reply <threadId> <body...> — OPTIONAL in-thread note (audit only).
+    # The convention is to acknowledge via a TOP-LEVEL `@codex` PR comment
+    # highlighting the change, then `resolve` the old thread, then wait for
+    # Codex's re-review (which arrives as NEW threads). See CLAUDE.md.
     body="${*:3}"
     { [ -n "$arg" ] && [ -n "$body" ]; } || {
       echo 'usage: review-gate.sh reply <threadId> <body...>' >&2; exit 2; }

@@ -120,29 +120,29 @@ Before merging:
 2. Read every Codex comment and inline review thread
    (`scripts/review-gate.sh threads <pr>`).
 3. Fix actionable feedback on the PR branch locally (this part is autonomous).
-4. Push the fix. **Reply IN the original thread for the audit record** —
-   never a top-level PR comment — citing the fix commit:
-   `scripts/review-gate.sh reply <threadId> "Fixed in <sha>: …"`. Then
-   **resolve that thread** (the fix commit + in-thread reply are the record).
-   Codex does **not** re-evaluate inside the same thread — its re-review
-   arrives as **brand-new threads**, so do not wait for an in-thread reply.
-5. Re-trigger review: `gh pr comment <pr> --body "@codex review"`. Codex
-   posts NEW threads for anything still wrong (or nothing). Loop back to
-   step 2 and handle those the same way until **zero unresolved Codex
-   threads** remain.
+4. Push the fix. For each addressed finding, **post a top-level PR comment
+   that `@codex`-mentions it and highlights the change**, citing the fix
+   commit and which thread/finding it addresses:
+   `gh pr comment <pr> --body "@codex addressed <finding> in <sha>: <what
+   changed>. Please re-review."`
+5. **Resolve the old conversation**
+   (`scripts/review-gate.sh resolve <threadId>`), then **wait for Codex's
+   re-review** — it arrives as **brand-new threads**, never as a reply in
+   the resolved one. Loop back to step 2 for any new threads until **zero
+   unresolved Codex threads** remain.
 6. Confirm CI green: `gh pr checks <pr>`.
 7. Confirm **zero unresolved threads** and `mergeStateStatus` is `CLEAN`
    (`scripts/review-gate.sh status <pr>`).
 
 The gate is **"zero unresolved Codex threads + CI green + mergeStateStatus
-CLEAN"**, not "Codex replied in-thread". Do **not** merge while GitHub reports
-unresolved conversations, failed checks, or a blocked merge state. Never
-resolve with only a top-level PR comment (always the in-thread reply +
-fix commit). Claude is final judge: a non-actionable nitpick may be resolved
-with a reasoned in-thread reply rather than looped forever. A clean Codex
-"Didn't find any major issues" counts **only after** any earlier
-Codex conversations on the PR have been fixed, replied to in-thread with
-`@codex`, and resolved.
+CLEAN"**. Do **not** merge while GitHub reports unresolved conversations,
+failed checks, or a blocked merge state. The acknowledgement is a top-level
+`@codex` comment highlighting the change (not an in-thread reply — Codex
+re-reviews via new threads regardless); then resolve the old thread. Claude
+is final judge: a non-actionable nitpick may be resolved with a reasoned
+top-level `@codex` note rather than looped forever. A clean Codex "Didn't
+find any major issues" counts **only after** every earlier Codex
+conversation has been acknowledged (top-level `@codex`) and resolved.
 
 ## Project specifics
 
