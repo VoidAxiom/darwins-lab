@@ -65,7 +65,10 @@ if ! command -v codex >/dev/null 2>&1; then
   exit 127
 fi
 
-"$@" > "$RUN/events.jsonl" 2> "$RUN/stderr.log"
+# Close stdin: the prompt is passed as an argument, so codex exec must not
+# wait on stdin. Without </dev/null a backgrounded run prints "Reading
+# additional input from stdin..." and hangs forever (VOI-36).
+"$@" < /dev/null > "$RUN/events.jsonl" 2> "$RUN/stderr.log"
 CODE=$?
 echo "$CODE" > "$RUN/exit_code.txt"
 
