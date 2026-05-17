@@ -127,8 +127,10 @@ Before merging:
    changed>. Please re-review."`
 5. **Resolve the old conversation**
    (`scripts/review-gate.sh resolve <threadId>`), then **wait for Codex's
-   re-review** — it arrives as **brand-new threads**, never as a reply in
-   the resolved one. Loop back to step 2 for any new threads until **zero
+   re-review with `scripts/review-gate.sh wait <pr>`** (polls ~15s, returns
+   as soon as Codex acts — `FINDINGS`/`REVIEWED-CLEAN` — rather than a long
+   fixed loop). Re-review arrives as **brand-new threads**, never as a reply
+   in the resolved one. Loop back to step 2 for any new threads until **zero
    unresolved Codex threads** remain.
 6. Confirm CI green: `gh pr checks <pr>`.
 7. Confirm **zero unresolved threads** and `mergeStateStatus` is `CLEAN`

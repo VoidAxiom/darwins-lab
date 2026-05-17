@@ -3,10 +3,18 @@
 #
 #   scripts/review-gate.sh status  <pr>          CI checks + merge state + open threads
 #   scripts/review-gate.sh threads <pr>          list review threads (id, resolved, body)
+#   scripts/review-gate.sh reply   <id> <body>   in-thread audit note (optional)
 #   scripts/review-gate.sh resolve <threadId>    resolve one review conversation
+#   scripts/review-gate.sh wait    <pr> [maxSec] poll until Codex responds / clean
 #
-# Read subcommands (status, threads) are side-effect free. `resolve` performs a
-# GraphQL mutation — part of the normal delivery flow, not destructive.
+# Read subcommands (status, threads, wait) are side-effect free. `resolve`/
+# `reply` perform GraphQL mutations — part of the normal delivery flow, not
+# destructive.
+#
+# `wait` exists so the caller does not hand-roll a slow fixed loop: it polls
+# every ~15s and returns the instant Codex has acted (a new review thread, or
+# a chatgpt-codex-connector PR comment with CI settled), instead of grinding a
+# long deadline (VOI-28).
 set -uo pipefail
 
 cmd="${1:-}"
@@ -94,8 +102,43 @@ for t in th:
     printf '%s' "$resp" | python3 -c 'import json,sys;t=json.load(sys.stdin)["data"]["resolveReviewThread"]["thread"];print("resolved",t["id"],t["isResolved"])'
     ;;
 
+  wait)
+    [ -n "$arg" ] || { echo "usage: review-gate.sh wait <pr> [maxSec]" >&2; exit 2; }
+    MAX="${3:-360}"
+    INT=15
+    WQ='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){mergeStateStatus comments(last:30){nodes{author{login}}} reviewThreads(first:100){nodes{isResolved}}}}}'
+    elapsed=0
+    while :; do
+      ci="$(gh pr checks "$arg" --json bucket -q '.[0].bucket' 2>/dev/null || echo '?')"
+      resp="$(gh api graphql -F o="$OWNER" -F r="$REPO" -F n="$arg" -f query="$WQ" 2>/dev/null)"
+      verdict="$(printf '%s' "$resp" | CI="$ci" python3 -c '
+import json,os,sys
+try:
+    d=json.load(sys.stdin)["data"]["repository"]["pullRequest"]
+except Exception:
+    print("ERR retry"); sys.exit()
+th=d["reviewThreads"]["nodes"]
+openn=sum(1 for t in th if not t["isResolved"])
+codex=sum(1 for c in d["comments"]["nodes"] if (c.get("author") or {}).get("login")=="chatgpt-codex-connector")
+mss=d["mergeStateStatus"]; ci=os.environ.get("CI","?")
+if openn>0:
+    print("FINDINGS open=%d mss=%s ci=%s" % (openn,mss,ci))
+elif codex>0 and ci!="pending":
+    print("REVIEWED-CLEAN codex_comments=%d open=0 mss=%s ci=%s" % (codex,mss,ci))
+else:
+    print("WAITING codex_comments=%d open=%d ci=%s" % (codex,openn,ci))
+')"
+      echo "t=${elapsed}s ${verdict}"
+      case "$verdict" in
+        FINDINGS*|REVIEWED-CLEAN*) exit 0 ;;
+      esac
+      [ "$elapsed" -ge "$MAX" ] && { echo "TIMEOUT after ${MAX}s"; exit 0; }
+      sleep "$INT"; elapsed=$((elapsed+INT))
+    done
+    ;;
+
   *)
-    echo "usage: review-gate.sh {status|threads|reply|resolve} <pr|threadId> [body]" >&2
+    echo "usage: review-gate.sh {status|threads|reply|resolve|wait} <pr|threadId> [body|maxSec]" >&2
     exit 2
     ;;
 esac
