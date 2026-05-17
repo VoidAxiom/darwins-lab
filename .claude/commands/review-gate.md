@@ -20,10 +20,13 @@ Loop until the gate is CLEAN:
    - Re-run the relevant evidence from `CLAUDE.md` (tsc / vitest / build /
      `npm run inspect`).
    - Commit + `git push`.
-   - Reply on the thread referencing the fix commit, then
-     `scripts/review-gate.sh resolve <threadId>`.
-4. If changes were non-trivial, re-trigger: `gh pr comment $1 --body
-   "@codex review"`, wait for it to respond, then re-evaluate from step 1.
+   - **Reply IN the thread (not a top-level PR comment), tagging `@codex`**:
+     `scripts/review-gate.sh reply <threadId> "Fixed in <sha>: <what>. @codex please re-review"`.
+   - **Resolve only after** Codex re-evaluates (trivial fixes: the in-thread
+     `@codex` reply is the record): `scripts/review-gate.sh resolve <threadId>`.
+4. Re-trigger when warranted: `gh pr comment $1 --body "@codex review"`,
+   wait for Codex to respond, then re-evaluate from step 1. Never resolve a
+   substantive thread without the in-thread `@codex` reply posted.
 5. When **all** review threads are resolved, `gh pr checks $1` is green, and
    `mergeStateStatus` is `CLEAN`:
    - `gh pr merge $1 --squash --delete-branch`.

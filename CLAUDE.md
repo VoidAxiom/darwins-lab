@@ -120,18 +120,24 @@ Before merging:
 2. Read every Codex comment and inline review thread
    (`scripts/review-gate.sh threads <pr>`).
 3. Fix actionable feedback on the PR branch locally (this part is autonomous).
-4. Push the fix; request re-review with `@codex review` when the change is
-   non-trivial.
-5. Resolve each fixed Codex conversation
-   (`scripts/review-gate.sh resolve <threadId>`).
+4. Push the fix. **Reply IN the review thread Codex spawned** — never a
+   top-level PR comment — citing the fix commit, and **tag `@codex`** so it
+   re-evaluates:
+   `scripts/review-gate.sh reply <threadId> "Fixed in <sha>: … @codex please re-review"`.
+5. **Resolve only AFTER** Codex has re-evaluated the thread (or, for a
+   trivial fix, with the in-thread reply as the record — never resolve a
+   substantive thread unilaterally without the `@codex` reply posted):
+   `scripts/review-gate.sh resolve <threadId>`.
 6. Confirm CI green: `gh pr checks <pr>`.
 7. Confirm threads resolved **and** `mergeStateStatus` is `CLEAN`
    (`scripts/review-gate.sh status <pr>`).
 
 Do **not** merge while GitHub reports unresolved conversations, failed checks,
-or a blocked merge state. A clean Codex comment like "Didn't find any major
-issues" counts as review evidence **only after** any earlier Codex
-conversations on the PR have been fixed and resolved.
+or a blocked merge state. Never resolve a Codex conversation with only a
+top-level PR comment or no `@codex` reply. A clean Codex comment like "Didn't
+find any major issues" counts as review evidence **only after** any earlier
+Codex conversations on the PR have been fixed, replied to in-thread with
+`@codex`, and resolved.
 
 ## Project specifics
 
