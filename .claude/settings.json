@@ -30,9 +30,17 @@
       "Bash(gh api:*)",
       "Bash(scripts/review-gate.sh:*)",
       "Bash(bash scripts/review-gate.sh:*)",
-      "mcp__linear__*"
+      "Bash(scripts/codex-run.sh:*)",
+      "Bash(bash scripts/codex-run.sh:*)",
+      "Bash(codex exec:*)",
+      "Bash(codex exec resume:*)",
+      "mcp__linear__*",
+      "mcp__chrome-devtools__*"
     ],
     "deny": [
+      "Bash(codex exec:* --dangerously-bypass-approvals-and-sandbox)",
+      "Bash(codex exec:* danger-full-access)",
+      "Bash(codex exec:* network_access=true)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
       "Bash(git push:* --force)",
