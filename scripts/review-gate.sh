@@ -16,7 +16,7 @@ repo_json="$(gh repo view --json owner,name)"
 OWNER="$(printf '%s' "$repo_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["owner"]["login"])')"
 REPO="$(printf '%s' "$repo_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["name"])')"
 
-Q='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){mergeable mergeStateStatus reviewThreads(first:100){nodes{id isResolved isOutdated comments(first:1){nodes{author{login} body path}}}}}}}'
+Q='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){mergeable mergeStateStatus reviewThreads(first:100){nodes{id isResolved isOutdated comments(last:20){nodes{author{login} body path}}}}}}}'
 
 case "$cmd" in
   status)
@@ -35,10 +35,11 @@ mss=d["mergeStateStatus"]
 print("mergeable=%s mergeStateStatus=%s" % (d["mergeable"], mss))
 print("review threads: %d total, %d UNRESOLVED" % (len(th), len(openn)))
 for t in openn:
-    c=(t["comments"]["nodes"] or [{}])[0]
+    cs=t["comments"]["nodes"] or [{}]
+    c=cs[-1]  # LATEST comment — reflects Codex re-review, not the stale finding
     who=(c.get("author") or {}).get("login","?")
     body=" ".join((c.get("body") or "").split())[:140]
-    print("  [open] %s  @%s: %s" % (t["id"], who, body))
+    print("  [open] %s  (%d msgs, latest @%s): %s" % (t["id"], len(cs), who, body))
 clean = mss=="CLEAN" and len(openn)==0
 print("\nGATE:", "CLEAN (mergeable once CI green)" if clean else "BLOCKED")
 '
@@ -53,12 +54,16 @@ th=json.load(sys.stdin)["data"]["repository"]["pullRequest"]["reviewThreads"]["n
 if not th:
     print("no review threads"); sys.exit()
 for t in th:
-    c=(t["comments"]["nodes"] or [{}])[0]
-    who=(c.get("author") or {}).get("login","?")
-    path=c.get("path") or "-"
+    cs=t["comments"]["nodes"] or [{}]
+    first=cs[0]; last=cs[-1]
+    path=first.get("path") or "-"
     state="resolved" if t["isResolved"] else "OPEN"
-    print("%s  [%s] @%s (%s)" % (t["id"], state, who, path))
-    print("   "+" ".join((c.get("body") or "").split())[:400])
+    print("%s  [%s] (%s)  %d msg(s)" % (t["id"], state, path, len(cs)))
+    fw=(first.get("author") or {}).get("login","?")
+    print("   finding @%s: %s" % (fw, " ".join((first.get("body") or "").split())[:300]))
+    if len(cs) > 1:
+        lw=(last.get("author") or {}).get("login","?")
+        print("   latest  @%s: %s" % (lw, " ".join((last.get("body") or "").split())[:300]))
 '
     ;;
 
