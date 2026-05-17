@@ -42,7 +42,7 @@ codex exec --json --sandbox read-only \
 
 ```bash
 codex exec --json --sandbox workspace-write \
-  --ask-for-approval on-request \
+  -c approval_policy="on-request" \
   -c approvals_reviewer=auto_review \
   -c sandbox_workspace_write.network_access=false \
   -c model="$CODEX_MODEL" \

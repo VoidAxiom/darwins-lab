@@ -44,8 +44,11 @@ if [ "$ROLE" = "explorer" ]; then
     -c model="$CODEX_MODEL" \
     --output-schema "$SCHEMA" -o "$RUN/result.json" "$(cat "$RUN/task.md")"
 else
+  # codex-cli `exec` has no --ask-for-approval flag; approval policy is a
+  # config override. on-request + auto_review lets it self-unblock without
+  # an interactive approver. Sandbox stays workspace-write, network off.
   set -- codex exec --json --sandbox workspace-write \
-    --ask-for-approval on-request \
+    -c approval_policy="on-request" \
     -c approvals_reviewer=auto_review \
     -c sandbox_workspace_write.network_access=false \
     -c model="$CODEX_MODEL" \
