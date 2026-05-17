@@ -7,6 +7,7 @@ describe("exportRun", () => {
   it("exports JSON from snapshot + seed and round-trips", () => {
     const seed = 123456;
     const snapshot = {
+      seed,
       stats: {
         tick: 120,
         generation: 17,

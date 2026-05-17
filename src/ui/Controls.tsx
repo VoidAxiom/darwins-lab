@@ -65,8 +65,11 @@ export function Controls() {
         onClick={() => {
           const latestSnapshot = useLab.getState().snapshot;
           if (!latestSnapshot) return;
-          const text = runToJSON(latestSnapshot, seed);
-          downloadText(`darwins-lab-${seed}-gen${latestSnapshot.stats.generation}.json`, text);
+          // Use the snapshot's OWN seed, never the store seed — reproducible
+          // even if a stale in-flight snapshot lands after a reset (VOI-31).
+          const sd = latestSnapshot.seed;
+          const text = runToJSON(latestSnapshot, sd);
+          downloadText(`darwins-lab-${sd}-gen${latestSnapshot.stats.generation}.json`, text);
         }}
       >
         ⤓ JSON
@@ -77,8 +80,9 @@ export function Controls() {
         onClick={() => {
           const latestSnapshot = useLab.getState().snapshot;
           if (!latestSnapshot) return;
+          const sd = latestSnapshot.seed;
           const text = runToCSV(latestSnapshot.history);
-          downloadText(`darwins-lab-${seed}-gen${latestSnapshot.stats.generation}.csv`, text);
+          downloadText(`darwins-lab-${sd}-gen${latestSnapshot.stats.generation}.csv`, text);
         }}
       >
         ⤓ CSV

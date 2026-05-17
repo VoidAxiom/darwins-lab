@@ -582,6 +582,7 @@ export class Simulation {
       });
     }
     return {
+      seed: this.config.seed,
       stats: this.snapshotStats(),
       dots,
       events: this.events.slice(-120),
