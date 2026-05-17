@@ -128,7 +128,11 @@ Linear issue = intent → Claude decomposes → Codex implements bounded slice �
 Claude verifies locally → PR opened (`Fixes <ISSUE-ID>`) → CI + GitHub Codex
 review → Claude polls feedback → Codex fixes bounded feedback → Claude
 verifies/integrates → Linear updated with evidence. Failed CI/review is
-feedback, not interruption. See `CLAUDE.md` for the review-gate mechanics.
+feedback, not interruption. Acknowledge each finding with a **top-level
+`@codex` PR comment highlighting the change**, then **resolve the old
+thread** and wait for re-review (which arrives as **new threads**). The gate
+is "zero unresolved Codex threads + CI green + mergeStateStatus CLEAN". See
+`CLAUDE.md` for mechanics.
 
 ## Cost / network policy
 

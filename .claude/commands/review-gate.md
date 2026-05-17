@@ -20,12 +20,17 @@ Loop until the gate is CLEAN:
    - Re-run the relevant evidence from `CLAUDE.md` (tsc / vitest / build /
      `npm run inspect`).
    - Commit + `git push`.
-   - Reply on the thread referencing the fix commit, then
-     `scripts/review-gate.sh resolve <threadId>`.
-4. If changes were non-trivial, re-trigger: `gh pr comment $1 --body
-   "@codex review"`, wait for it to respond, then re-evaluate from step 1.
-5. When **all** review threads are resolved, `gh pr checks $1` is green, and
-   `mergeStateStatus` is `CLEAN`:
+   - **Post a top-level PR comment that `@codex`-mentions the finding and
+     highlights the change**, then **resolve the old thread**:
+     `gh pr comment $1 --body "@codex addressed <finding> in <sha>: <what>. Please re-review."`
+     then `scripts/review-gate.sh resolve <id>`.
+4. **Wait for Codex's re-review** — it arrives as **NEW threads** (never a
+   reply in the resolved one). Loop back to step 1 and handle those the same
+   way until **zero unresolved Codex threads**. As final judge, a
+   non-actionable nitpick may be resolved with a reasoned top-level `@codex`
+   note rather than looped forever.
+5. When **zero Codex threads are unresolved**, `gh pr checks $1` is green,
+   and `mergeStateStatus` is `CLEAN`:
    - `gh pr merge $1 --squash --delete-branch`.
    - Linear MCP: move the linked issue to **Done** and add a comment with
      the merged PR URL.

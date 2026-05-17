@@ -120,18 +120,29 @@ Before merging:
 2. Read every Codex comment and inline review thread
    (`scripts/review-gate.sh threads <pr>`).
 3. Fix actionable feedback on the PR branch locally (this part is autonomous).
-4. Push the fix; request re-review with `@codex review` when the change is
-   non-trivial.
-5. Resolve each fixed Codex conversation
-   (`scripts/review-gate.sh resolve <threadId>`).
+4. Push the fix. For each addressed finding, **post a top-level PR comment
+   that `@codex`-mentions it and highlights the change**, citing the fix
+   commit and which thread/finding it addresses:
+   `gh pr comment <pr> --body "@codex addressed <finding> in <sha>: <what
+   changed>. Please re-review."`
+5. **Resolve the old conversation**
+   (`scripts/review-gate.sh resolve <threadId>`), then **wait for Codex's
+   re-review** — it arrives as **brand-new threads**, never as a reply in
+   the resolved one. Loop back to step 2 for any new threads until **zero
+   unresolved Codex threads** remain.
 6. Confirm CI green: `gh pr checks <pr>`.
-7. Confirm threads resolved **and** `mergeStateStatus` is `CLEAN`
+7. Confirm **zero unresolved threads** and `mergeStateStatus` is `CLEAN`
    (`scripts/review-gate.sh status <pr>`).
 
-Do **not** merge while GitHub reports unresolved conversations, failed checks,
-or a blocked merge state. A clean Codex comment like "Didn't find any major
-issues" counts as review evidence **only after** any earlier Codex
-conversations on the PR have been fixed and resolved.
+The gate is **"zero unresolved Codex threads + CI green + mergeStateStatus
+CLEAN"**. Do **not** merge while GitHub reports unresolved conversations,
+failed checks, or a blocked merge state. The acknowledgement is a top-level
+`@codex` comment highlighting the change (not an in-thread reply — Codex
+re-reviews via new threads regardless); then resolve the old thread. Claude
+is final judge: a non-actionable nitpick may be resolved with a reasoned
+top-level `@codex` note rather than looped forever. A clean Codex "Didn't
+find any major issues" counts **only after** every earlier Codex
+conversation has been acknowledged (top-level `@codex`) and resolved.
 
 ## Project specifics
 

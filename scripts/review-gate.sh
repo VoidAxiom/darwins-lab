@@ -6,31 +6,21 @@
 #   scripts/review-gate.sh resolve <threadId>    resolve one review conversation
 #
 # Read subcommands (status, threads) are side-effect free. `resolve` performs a
-# GraphQL mutation — it is part of the normal delivery flow, not destructive.
-set -euo pipefail
+# GraphQL mutation — part of the normal delivery flow, not destructive.
+set -uo pipefail
 
 cmd="${1:-}"
 arg="${2:-}"
 
 repo_json="$(gh repo view --json owner,name)"
-OWNER="$(echo "$repo_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["owner"]["login"])')"
-REPO="$(echo "$repo_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["name"])')"
+OWNER="$(printf '%s' "$repo_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["owner"]["login"])')"
+REPO="$(printf '%s' "$repo_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["name"])')"
 
-threads_query='
-query($owner:String!,$repo:String!,$pr:Int!){
-  repository(owner:$owner,name:$repo){
-    pullRequest(number:$pr){
-      mergeable
-      mergeStateStatus
-      reviewThreads(first:100){
-        nodes{
-          id isResolved isOutdated
-          comments(first:1){nodes{author{login} body path}}
-        }
-      }
-    }
-  }
-}'
+# `finding` = the original review comment (first), fetched separately so it is
+# never lost no matter how many replies a thread accrues; `recent` = the tail
+# (latest state, e.g. a fix reply). Codex re-reviews land as NEW threads, so
+# the gate is "zero unresolved Codex threads", not an in-thread re-review.
+Q='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){mergeable mergeStateStatus reviewThreads(first:100){nodes{id isResolved isOutdated finding:comments(first:1){nodes{author{login} body path}} recent:comments(last:20){totalCount nodes{author{login} body}}}}}}}'
 
 case "$cmd" in
   status)
@@ -39,51 +29,73 @@ case "$cmd" in
     gh pr checks "$arg" || true
     echo
     echo "== merge state =="
-    gh api graphql -F owner="$OWNER" -F repo="$REPO" -F pr="$arg" -f query="$threads_query" \
-      | python3 - <<'PY'
+    resp="$(gh api graphql -F owner="$OWNER" -F repo="$REPO" -F pr="$arg" -f query="$Q")"
+    printf '%s' "$resp" | python3 -c '
 import json,sys
 d=json.load(sys.stdin)["data"]["repository"]["pullRequest"]
 th=d["reviewThreads"]["nodes"]
 openn=[t for t in th if not t["isResolved"]]
-print(f"mergeable={d['mergeable']} mergeStateStatus={d['mergeStateStatus']}")
-print(f"review threads: {len(th)} total, {len(openn)} UNRESOLVED")
+mss=d["mergeStateStatus"]
+print("mergeable=%s mergeStateStatus=%s" % (d["mergeable"], mss))
+print("review threads: %d total, %d UNRESOLVED" % (len(th), len(openn)))
 for t in openn:
-    c=(t["comments"]["nodes"] or [{}])[0]
-    who=(c.get('author') or {}).get('login','?')
-    body=' '.join((c.get('body') or '').split())[:120]
-    print(f"  [open] {t['id']}  @{who}: {body}")
-clean = d['mergeStateStatus']=='CLEAN' and len(openn)==0
-print("\nGATE:", "CLEAN ✅ (safe to merge once CI green)" if clean else "BLOCKED ❌")
-PY
+    f=((t["finding"]["nodes"] or [{}])[0])
+    rec=t["recent"]["nodes"] or [{}]
+    last=rec[-1]
+    fw=(f.get("author") or {}).get("login","?")
+    lw=(last.get("author") or {}).get("login","?")
+    body=" ".join((last.get("body") or f.get("body") or "").split())[:140]
+    print("  [open] %s  (%d msgs, finding @%s, latest @%s): %s"
+          % (t["id"], t["recent"]["totalCount"], fw, lw, body))
+clean = mss=="CLEAN" and len(openn)==0
+print("\nGATE:", "CLEAN (mergeable once CI green)" if clean else "BLOCKED")
+'
     ;;
 
   threads)
     [ -n "$arg" ] || { echo "usage: review-gate.sh threads <pr>" >&2; exit 2; }
-    gh api graphql -F owner="$OWNER" -F repo="$REPO" -F pr="$arg" -f query="$threads_query" \
-      | python3 - <<'PY'
+    resp="$(gh api graphql -F owner="$OWNER" -F repo="$REPO" -F pr="$arg" -f query="$Q")"
+    printf '%s' "$resp" | python3 -c '
 import json,sys
 th=json.load(sys.stdin)["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
-if not th: print("no review threads"); raise SystemExit
+if not th:
+    print("no review threads"); sys.exit()
 for t in th:
-    c=(t["comments"]["nodes"] or [{}])[0]
-    who=(c.get('author') or {}).get('login','?')
-    path=c.get('path') or '-'
-    state='resolved' if t['isResolved'] else 'OPEN'
-    print(f"{t['id']}  [{state}] @{who} ({path})")
-    print("   "+' '.join((c.get('body') or '').split())[:300])
-PY
+    first=(t["finding"]["nodes"] or [{}])[0]
+    rec=t["recent"]["nodes"] or [{}]
+    last=rec[-1]
+    n=t["recent"]["totalCount"]
+    path=first.get("path") or "-"
+    state="resolved" if t["isResolved"] else "OPEN"
+    print("%s  [%s] (%s)  %d msg(s)" % (t["id"], state, path, n))
+    fw=(first.get("author") or {}).get("login","?")
+    print("   finding @%s: %s" % (fw, " ".join((first.get("body") or "").split())[:300]))
+    if n > 1:
+        lw=(last.get("author") or {}).get("login","?")
+        print("   latest  @%s: %s" % (lw, " ".join((last.get("body") or "").split())[:300]))
+'
+    ;;
+
+  reply)
+    # reply <threadId> <body...> — OPTIONAL in-thread note (audit only).
+    # The convention is to acknowledge via a TOP-LEVEL `@codex` PR comment
+    # highlighting the change, then `resolve` the old thread, then wait for
+    # Codex's re-review (which arrives as NEW threads). See CLAUDE.md.
+    body="${*:3}"
+    { [ -n "$arg" ] && [ -n "$body" ]; } || {
+      echo 'usage: review-gate.sh reply <threadId> <body...>' >&2; exit 2; }
+    resp="$(gh api graphql -F tid="$arg" -F body="$body" -f query='mutation($tid:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$tid,body:$body}){comment{url}}}')"
+    printf '%s' "$resp" | python3 -c 'import json,sys;print("replied:",json.load(sys.stdin)["data"]["addPullRequestReviewThreadReply"]["comment"]["url"])'
     ;;
 
   resolve)
     [ -n "$arg" ] || { echo "usage: review-gate.sh resolve <threadId>" >&2; exit 2; }
-    gh api graphql -F threadId="$arg" -f query='
-      mutation($threadId:ID!){
-        resolveReviewThread(input:{threadId:$threadId}){thread{id isResolved}}
-      }' | python3 -c 'import json,sys;t=json.load(sys.stdin)["data"]["resolveReviewThread"]["thread"];print("resolved",t["id"],t["isResolved"])'
+    resp="$(gh api graphql -F threadId="$arg" -f query='mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId}){thread{id isResolved}}}')"
+    printf '%s' "$resp" | python3 -c 'import json,sys;t=json.load(sys.stdin)["data"]["resolveReviewThread"]["thread"];print("resolved",t["id"],t["isResolved"])'
     ;;
 
   *)
-    echo "usage: review-gate.sh {status|threads|resolve} <pr|threadId>" >&2
+    echo "usage: review-gate.sh {status|threads|reply|resolve} <pr|threadId> [body]" >&2
     exit 2
     ;;
 esac
