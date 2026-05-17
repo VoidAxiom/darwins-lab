@@ -110,12 +110,28 @@ for t in th:
     # Baseline the Codex-comment count at invocation. REVIEWED-CLEAN requires
     # a NEW chatgpt-codex-connector comment since now — not any historical
     # one — so a prior clean comment can't short-circuit the re-review (P1).
-    base_resp="$(gh api graphql -F o="$OWNER" -F r="$REPO" -F n="$arg" -f query="$WQ" 2>/dev/null)"
-    BASE_CODEX="$(printf '%s' "$base_resp" | python3 -c 'import json,sys
-try: d=json.load(sys.stdin)["data"]["repository"]["pullRequest"]
-except Exception: print(0); sys.exit()
-print(sum(1 for c in d["comments"]["nodes"] if (c.get("author") or {}).get("login")=="chatgpt-codex-connector"))')"
-    echo "baseline: ${BASE_CODEX:-0} prior Codex comment(s) — waiting for a fresh one"
+    # The baseline MUST be established from a successful fetch; a failed/
+    # transient/non-JSON response must NOT default to 0 (that would make
+    # historical comments look fresh and reopen the stale-clean shortcut).
+    # Retry, then abort rather than guess (P1).
+    BASE_CODEX=""
+    for _attempt in 1 2 3 4 5; do
+      base_resp="$(gh api graphql -F o="$OWNER" -F r="$REPO" -F n="$arg" -f query="$WQ" 2>/dev/null)"
+      parsed="$(printf '%s' "$base_resp" | python3 -c 'import json,sys
+try:
+    d=json.load(sys.stdin)["data"]["repository"]["pullRequest"]
+    print("OK", sum(1 for c in d["comments"]["nodes"] if (c.get("author") or {}).get("login")=="chatgpt-codex-connector"))
+except Exception:
+    print("ERR")')"
+      case "$parsed" in
+        "OK "*) BASE_CODEX="${parsed#OK }"; break ;;
+      esac
+      sleep 3
+    done
+    [ -n "$BASE_CODEX" ] || {
+      echo "wait: could not establish Codex-comment baseline after retries — aborting (refusing to risk a stale-clean shortcut)" >&2
+      exit 3; }
+    echo "baseline: $BASE_CODEX prior Codex comment(s) — waiting for a fresh one"
     elapsed=0
     while :; do
       ci="$(gh pr checks "$arg" --json bucket -q '.[0].bucket' 2>/dev/null || echo '?')"
