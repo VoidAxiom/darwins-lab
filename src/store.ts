@@ -87,6 +87,10 @@ export const useLab = create<LabState>((set, get) => {
       send({ type: "reset", config: { seed: s, ...cfg } });
       set({
         seed: s,
+        // Clear the stale snapshot so it is never paired with the new seed
+        // (export reproducibility — VOI-31 / Codex P2). Buttons that gate on
+        // `snapshot` disable until the fresh run posts its first snapshot.
+        snapshot: null,
         running: false,
         selectedId: null,
         inspect: null,

@@ -119,6 +119,10 @@ export interface WorldMeta {
 
 /** Full per-frame payload from worker → UI. */
 export interface SimSnapshot {
+  /** The seed of the run that produced this snapshot. Exports use THIS
+   *  (not the store's seed) so a file is always reproducible from it,
+   *  even if a stale in-flight snapshot lands after a reset. */
+  seed: number;
   stats: SimStats;
   dots: CreatureDot[];
   events: EventRecord[];

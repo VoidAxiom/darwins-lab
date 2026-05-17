@@ -1,12 +1,25 @@
 import { useLab } from "../store";
+import { runToCSV, runToJSON } from "../sim/exportRun";
 
 const SPEEDS = [1, 4, 16, 48, 120, 300];
+
+function downloadText(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
 
 /** Run/pause, speed, reseed. Lives in the bottom bar. */
 export function Controls() {
   const running = useLab((s) => s.running);
   const speed = useLab((s) => s.speed);
   const seed = useLab((s) => s.seed);
+  const snapshot = useLab((s) => s.snapshot);
   const start = useLab((s) => s.start);
   const pause = useLab((s) => s.pause);
   const setSpeed = useLab((s) => s.setSpeed);
@@ -45,6 +58,34 @@ export function Controls() {
       </button>
       <button className="btn" onClick={() => reset(seed)}>
         ↺ Restart
+      </button>
+      <button
+        className="btn"
+        disabled={!snapshot}
+        onClick={() => {
+          const latestSnapshot = useLab.getState().snapshot;
+          if (!latestSnapshot) return;
+          // Use the snapshot's OWN seed, never the store seed — reproducible
+          // even if a stale in-flight snapshot lands after a reset (VOI-31).
+          const sd = latestSnapshot.seed;
+          const text = runToJSON(latestSnapshot, sd);
+          downloadText(`darwins-lab-${sd}-gen${latestSnapshot.stats.generation}.json`, text);
+        }}
+      >
+        ⤓ JSON
+      </button>
+      <button
+        className="btn"
+        disabled={!snapshot}
+        onClick={() => {
+          const latestSnapshot = useLab.getState().snapshot;
+          if (!latestSnapshot) return;
+          const sd = latestSnapshot.seed;
+          const text = runToCSV(latestSnapshot.history);
+          downloadText(`darwins-lab-${sd}-gen${latestSnapshot.stats.generation}.csv`, text);
+        }}
+      >
+        ⤓ CSV
       </button>
     </div>
   );
